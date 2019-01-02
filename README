@@ -1,0 +1,53 @@
+import rospy
+import mavros
+from mavros_msgs.srv import CommandBool
+from mavros_msgs.srv import SetMode
+from mavros_msgs.msg import State
+from geometry_msgs.msg import PoseStamped
+
+current_state=State()
+
+def callback(data):
+	global current_state 
+	current_state = data
+	
+
+def offboard():
+	rospy.init_node('offboard',anonymous=True)
+	rospy.Subscriber('mavros/state',State,callback)
+	pub=rospy.Publisher('mavros/setpoint_position/local',PoseStamped,queue_size=10)
+	arming_handler=rospy.ServiceProxy('mavros/cmd/arming',CommandBool)
+	Set_mode_handler=rospy.ServiceProxy('mavros/set_mode',SetMode)
+	rate=rospy.Rate(20)
+	Pose=PoseStamped()
+	Pose.pose.position.x=0
+	Pose.pose.position.y=0
+	Pose.pose.position.z=2
+
+	for i in range(100):
+		pub.publish(Pose)
+		rate.sleep()
+
+	last_request = rospy.Time.now()
+	rospy.loginfo( "%s",current_state.mode)
+	while not rospy.is_shutdown():
+		if (current_state.mode!="OFFBOARD"): 
+			# and (rospy.Time.now() - last_request>rospy.Duration(0.05)):
+			Set_mode_handler(base_mode=0,custom_mode="OFFBOARD")
+			rospy.loginfo( "%s",current_state.mode)
+			last_request = rospy.Time.now()
+		else:
+			if not current_state.armed:
+			# and (rospy.Time.now() - last_request>rospy.Duration(0.05)):
+				arming_handler(True)
+				last_request = rospy.Time.now()
+		Pose.header.stamp = rospy.Time.now()
+		pub.publish(Pose)
+		last_request=rospy.Time.now()	
+
+if __name__=='__main__':
+	offboard()
+
+
+
+
